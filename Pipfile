@@ -1,0 +1,15 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[dev-packages]
+flake8 = "*"
+pytest = "*"
+
+[packages]
+ocoen-aws-token-manager = {path = ".",editable = true}
+ocoen-filesecrets = {git = "https://github.com/orthanc/ocoen_filesecrets",editable = true}
+
+[requires]
+python_version = "3.6"
