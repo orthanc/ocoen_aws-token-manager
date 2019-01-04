@@ -37,8 +37,9 @@ def _get_mfa_device(session):
 
 
 def _get_base_credentials(profile_name):
+    # See https://docs.aws.amazon.com/cli/latest/topic/config-vars.html
     credential_files = [
-        config.get_profile_config_file(profile_name),
+        config.get_profile_credentials_file(profile_name),
         config.shared_config_file,
         config.shared_credentials_file,
     ]

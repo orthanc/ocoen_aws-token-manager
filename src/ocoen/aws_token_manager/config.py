@@ -46,7 +46,7 @@ class ConfigFile(object):
         return None
 
 
-def get_config_file(path, prefix_sectiions=True):
+def get_config_file(path, prefix_sectiions):
     if path not in config_files:
         config_files[path] = ConfigFile(path, prefix_sectiions)
     return config_files[path]
@@ -56,6 +56,5 @@ shared_config_file = get_config_file(os.environ.get('AWS_CONFIG_FILE', os.path.e
 shared_credentials_file = get_config_file(os.environ.get('AWS_SHARED_CREDENTIALS_FILE', os.path.expanduser(os.path.join('~', '.aws', 'credentials'))), False)
 
 
-def get_profile_config_file(profile_name):
-    return get_config_file('{0}-{1}.enc'.format(shared_config_file.path, profile_name))
-
+def get_profile_credentials_file(profile_name):
+    return get_config_file('{0}-{1}.enc'.format(shared_credentials_file.path, profile_name), False)
