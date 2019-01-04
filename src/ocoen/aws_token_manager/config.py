@@ -1,7 +1,5 @@
 import os
 import os.path
-# Importing readline makes input behave nicer (e.g. backspace works) so not actually unused
-import readline  # NOQA
 
 from configparser import ConfigParser
 from getpass import getpass
