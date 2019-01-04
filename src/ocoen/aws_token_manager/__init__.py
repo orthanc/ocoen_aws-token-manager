@@ -10,7 +10,6 @@ from ocoen.aws_token_manager import config
 from ocoen.aws_token_manager.tty import if_not_tty, tty
 
 
-@if_not_tty(prompt='Output is a terminal, do you really want to write the access tokens? (Y/N):')
 def _export_token(token):
     print("export AWS_ACCESS_KEY_ID='" + token['AccessKeyId'] + "';")
     print("export AWS_SECRET_ACCESS_KEY='" + token['SecretAccessKey'] + "';")
@@ -65,6 +64,15 @@ def _extract_credentials(section):
     return ret
 
 
+@if_not_tty(prompt='Output is a terminal. Did you mean to run \'eval $(atm)\' instead ?\nDo you really want to write the access tokens? (Y/N): ')
+def obtain_and_export_token(args):
+    session = boto3.Session(**_get_base_credentials(args.profile)[0])
+    token = _obtain_token(session, _get_mfa_device(session), args.life)
+    _export_token(token)
+    with tty():
+        print('Token Obtained, valid til: {0}'.format(token['Expiration'].astimezone(tz=None)))
+
+
 def main():
     parser = ArgumentParser()
     parser.add_argument('--profile', default=os.environ.get('AWS_PROFILE', 'default'),
@@ -76,6 +84,4 @@ def main():
     # request_parser = subparsers.add_parser('bob')
     args = parser.parse_args()
 
-    session = boto3.Session(**_get_base_credentials(args.profile)[0])
-    token = _obtain_token(session, _get_mfa_device(session), args.life)
-    _export_token(token)
+    obtain_and_export_token(args)
