@@ -52,7 +52,7 @@
         "ocoen-filesecrets": {
             "editable": true,
             "git": "https://github.com/orthanc/ocoen_filesecrets.git",
-            "ref": "f564c2a23590d1e57be33ce6d7806623c730efb0"
+            "ref": "44f0d2d5a518679e3779ddecb657f91ed910e5ba"
         },
         "pycryptodome": {
             "hashes": [

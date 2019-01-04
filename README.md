@@ -75,10 +75,18 @@ The invocation of AWS Token Manager is unchanged, the only difference is you'll 
     MFA Token: 123456
     Token Obtained, valid til: 2019-01-05 03:36:24+13:00
 
+### Encrypting the credentials
+
+The encrypted credentials file must be encrypted with the [ocoen_filesecrets](https://github.com/orthanc/ocoen_filesecrets)
+using the profile name (UTF-8 encoded) as the additional data.
+
+The encrypted contents has the same format as the [AWS Shared Credentials File](https://docs.aws.amazon.com/cli/latest/topic/config-vars.html#the-shared-credentials-file)
+but should only contain the section for the profile in use.
+
 To create the encrypted credential file use `fs-encrypt` from ocoen_filesecrets. E.g. if you've already got the access
 keys in the shared credentials file for the default profile, you can create the encrypted credential files by:
 
-    $ fs-encrypt ~/.aws/credentials ~/.aws/credentials-default.enc
+    $ fs-encrypt ~/.aws/credentials ~/.aws/credentials-default.enc -d default
     Password:
     Confirm Password:
 
