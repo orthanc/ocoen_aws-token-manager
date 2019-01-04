@@ -20,7 +20,7 @@ def _obtain_token(session, mfa_device, duration):
     args = {}
     if mfa_device:
         with tty():
-            mfa_code = input('MFA Token> ')
+            mfa_code = input('MFA Token: ')
         args['SerialNumber'] = mfa_device
         args['TokenCode'] = mfa_code
     if duration:

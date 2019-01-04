@@ -25,7 +25,7 @@ class ConfigFile(object):
             with open(self.path, 'rb') as f:
                 data = f.read()
             if filesecrets.is_encrypted(data):
-                password = getpass(prompt='Password for {0}:'.format(os.path.basename(self.path)))
+                password = getpass(prompt='Password for {0}: '.format(os.path.basename(self.path)))
                 data = filesecrets.decrypt(data, password)
             self._config = ConfigParser()
             self._config.read_string(data.decode(), self.path)
