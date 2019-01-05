@@ -20,6 +20,14 @@ def _export_token(token):
     print("export AWS_SESSION_TOKEN='" + token['SessionToken'] + "';")
 
 
+def _create_session(token):
+    return boto3.Session(
+                            aws_access_key_id=token['AccessKeyId'],
+                            aws_secret_access_key=token['SecretAccessKey'],
+                            aws_session_token=token['SessionToken']
+                        )
+
+
 def _obtain_token(session, mfa_device, duration):
     args = {}
     if mfa_device:
@@ -98,6 +106,47 @@ def import_credentials(args):
     print('Access key removed from {0}'.format(config_file.basename))
 
 
+def _ensure_single_access_key(user, base_credentials):
+    inuse_access_key_id = base_credentials['aws_access_key_id']
+    access_keys = list(user.access_keys.all())
+
+    inuse_access_key = next((key for key in access_keys if key.access_key_id == inuse_access_key_id))
+    other_access_key = next((key for key in access_keys if key.access_key_id != inuse_access_key_id), None)
+
+    if other_access_key:
+        if confirm('User {username} already has 2 access keys, delete key {access_key_id} created on {created}? (Y/N): '.format(
+                    username=user.user_name,
+                    access_key_id=other_access_key.access_key_id,
+                    created=other_access_key.create_date,
+                )):
+            other_access_key.delete()
+        else:
+            sys.exit('Aborted')
+    return inuse_access_key
+
+
+@if_tty(error_message='stdin and stdout must be a tty when rotateing credentials.')
+def rotate_credentials(args):
+    profile = args.profile
+    base_credentials, config_file = _get_base_credentials([config.get_profile_credentials_file(profile)] + shared_config_files, profile)
+    static_session = boto3.Session(**base_credentials)
+    token = _obtain_token(static_session, _get_mfa_device(static_session), 900)
+    session = _create_session(token)
+    iam = session.resource('iam')
+    user = iam.CurrentUser().user
+
+    inuse_access_key = _ensure_single_access_key(user, base_credentials)
+    new_access_key = user.create_access_key_pair()
+    section = config_file.get_profile_section(profile)
+    section['aws_access_key_id'] = new_access_key.access_key_id
+    section['aws_secret_access_key'] = new_access_key.secret_access_key
+    if 'aws_session_token' in section:
+        del section['aws_session_token']
+    config_file.save()
+    inuse_access_key.delete()
+    print('Access key rotated')
+
+
 def main():
     parser = ArgumentParser()
     parser.add_argument('--profile', default=os.environ.get('AWS_PROFILE', 'default'),
@@ -110,9 +159,13 @@ def main():
     subparsers.add_parser('import',
                           help='Import the static access credentials from an existing credentials file into an '
                                + 'encrypted credentials file.')
+    subparsers.add_parser('rotate',
+                          help='Rotate the static access credentials so that new credentials are in use.')
 
     args = parser.parse_args()
     if not args.command:
         obtain_and_export_token(args)
     elif args.command == 'import':
         import_credentials(args)
+    elif args.command == 'rotate':
+        rotate_credentials(args)
