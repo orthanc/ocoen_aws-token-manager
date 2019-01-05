@@ -1,3 +1,4 @@
+import io
 import os
 import os.path
 
@@ -15,35 +16,66 @@ class ConfigFile(object):
         self.prefix_sections = prefix_sections
         self.encrypted = encrypted
         self.additional_data = additional_data
+        self.basename = os.path.basename(path)
         self.exists = os.path.exists(path)
         self._config = None
+        self._password = None
+
+    def new_config(self):
+        self._config = ConfigParser(default_section=None)
+        return self._config
+
+    def _get_password(self, confirm=False):
+        if not self._password:
+            self._password = getpass(prompt='Password for {0}: '.format(self.basename))
+            if confirm and self._password != getpass(prompt='Confirm Password for {0}: '.format(self.basename)):
+                raise RuntimeError('Passwords for {0} don\'t match!'.format(self.basename))
+        return self._password
 
     def get_config(self):
-        if not self.exists:
-            return None
         if not self._config:
+            if not self.exists:
+                return None
             with open(self.path, 'rb') as f:
                 data = f.read()
             if self.encrypted:
-                password = getpass(prompt='Password for {0}: '.format(os.path.basename(self.path)))
-                data = filesecrets.decrypt(data, password, self.additional_data)
-            self._config = ConfigParser()
+                data = filesecrets.decrypt(data, self._get_password(), self.additional_data)
+            self._config = ConfigParser(default_section=None)
             self._config.read_string(data.decode(), self.path)
         return self._config
+
+    def save(self):
+        with io.StringIO() as f:
+            self._config.write(f)
+            data = f.getvalue().encode()
+        if self.encrypted:
+            data = filesecrets.encrypt(data, self._get_password(True), self.additional_data)
+        with open(self.path, 'wb') as f:
+            f.write(data)
+
+    def new_profile_section(self, profile_name, content={}):
+        config = self.get_config()
+        if not config:
+            return None
+        section_name = self._get_profile_section_name(profile_name)
+        config[section_name] = content.copy()
 
     def get_profile_section(self, profile_name):
         config = self.get_config()
         if not config:
             return None
-        if profile_name == 'default':
-            section_name = 'default'
-        elif self.prefix_sections:
-            section_name = 'profile ' + profile_name
-        else:
-            section_name = profile_name
+        section_name = self._get_profile_section_name(profile_name)
         if section_name in config:
             return config[section_name]
         return None
+
+    def _get_profile_section_name(self, profile_name):
+        if profile_name == 'default':
+            return 'default'
+        elif self.prefix_sections:
+            return 'profile ' + profile_name
+        else:
+            return profile_name
 
 
 def get_config_file(path, prefix_sections, encrypted=False, additional_data=None):
