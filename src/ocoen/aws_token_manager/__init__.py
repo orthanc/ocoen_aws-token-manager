@@ -2,8 +2,7 @@ import os
 # Importing readline makes input behave nicer (e.g. backspace works) so not actually unused
 import readline  # NOQA
 import sys
-
-from argparse import ArgumentParser
+import argparse
 
 import boto3
 
@@ -147,20 +146,32 @@ def rotate_credentials(args):
     print('Access key rotated')
 
 
-def main():
-    parser = ArgumentParser()
-    parser.add_argument('--profile', default=os.environ.get('AWS_PROFILE', 'default'),
+def _add_profile_argument(parser, default):
+    parser.add_argument('--profile', default=default,
                         help='The profile to work with. Defaults to the AWS_PROFILE environment variable or "default".')
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    _add_profile_argument(parser, default=os.environ.get('AWS_PROFILE', 'default'))
     parser.add_argument('--life', '-t', type=int,
                         help='How long the token should be valid for, default is token type specific. Attempting to '
                              + 'specify a length longer than the max allowed results in an error.')
     subparsers = parser.add_subparsers(title='Management Commands', dest='command',
                                        description='Commands for managing the static access credentials.')
-    subparsers.add_parser('import',
-                          help='Import the static access credentials from an existing credentials file into an '
-                               + 'encrypted credentials file.')
-    subparsers.add_parser('rotate',
-                          help='Rotate the static access credentials so that new credentials are in use.')
+
+    i_parser = subparsers.add_parser('import',
+                                     help='Import the static access credentials from an existing credentials file into '
+                                          + 'an encrypted credentials file.')
+    # Profile is added again so it shows up in sub command help and can be
+    # specified after the subcommand as well as before
+    _add_profile_argument(i_parser, default=argparse.SUPPRESS)
+
+    r_parser = subparsers.add_parser('rotate',
+                                     help='Rotate the static access credentials so that new credentials are in use.')
+    # Profile is added again so it shows up in sub command help and can be
+    # specified after the subcommand as well as before
+    _add_profile_argument(r_parser, default=argparse.SUPPRESS)
 
     args = parser.parse_args()
     if not args.command:
