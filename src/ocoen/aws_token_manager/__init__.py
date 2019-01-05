@@ -7,7 +7,7 @@ from argparse import ArgumentParser
 import boto3
 
 from ocoen.aws_token_manager import config
-from ocoen.aws_token_manager.tty import if_not_tty, tty
+from ocoen.aws_token_manager.tty import if_not_tty, tty, tty_input
 
 
 def _export_token(token):
@@ -19,8 +19,7 @@ def _export_token(token):
 def _obtain_token(session, mfa_device, duration):
     args = {}
     if mfa_device:
-        with tty():
-            mfa_code = input('MFA Token: ')
+        mfa_code = tty_input('MFA Token: ')
         args['SerialNumber'] = mfa_device
         args['TokenCode'] = mfa_code
     if duration:

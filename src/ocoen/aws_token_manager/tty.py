@@ -7,30 +7,44 @@ from contextlib import contextmanager
 from io import TextIOWrapper
 
 
-def if_tty(**kwargs):
-    return tty_conditional(tty_desired=True, **kwargs)
-
-
-def if_not_tty(**kwargs):
-    return tty_conditional(tty_desired=False, **kwargs)
-
-
-def tty_conditional(tty_desired=True, prompt=None, default_return=None, streams=[sys.stdout]):
+def if_tty(error_message=None, default_return=None, streams=[sys.stdout, sys.stdin]):
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             streams_are_tty = not next((s for s in streams if not s.isatty()), False)
-            if streams_are_tty == tty_desired:
+            if streams_are_tty:
+                return func(*args, **kwargs)
+            elif error_message:
+                raise RuntimeError(error_message)
+            else:
+                return default_return
+        return wrapper
+    return decorator
+
+
+def if_not_tty(prompt=None, default_return=None, streams=[sys.stdout]):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            streams_are_not_tty = next((s for s in streams if not s.isatty()), False)
+            if streams_are_not_tty:
                 return func(*args, **kwargs)
             else:
-                if prompt:
-                    with tty():
-                        resp = input(prompt)
-                    if resp and resp.upper()[0] == 'Y':
-                        return func(*args, **kwargs)
+                if prompt and confirm(prompt):
+                    return func(*args, **kwargs)
             return default_return
         return wrapper
     return decorator
+
+
+def confirm(prompt):
+    resp = tty_input(prompt)
+    return resp and resp.upper()[0] == 'Y'
+
+
+def tty_input(prompt):
+    with tty():
+        return input(prompt)
 
 
 @contextmanager
