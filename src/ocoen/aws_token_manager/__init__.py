@@ -19,7 +19,14 @@ def _export_token(token):
     print("export AWS_SESSION_TOKEN='" + token['SessionToken'] + "';")
 
 
-def _create_session(token):
+def _create_session_for_iam(base_credentials):
+    static_session = boto3.Session(**base_credentials)
+    mfa_device = _get_mfa_device(static_session)
+    if not mfa_device:
+        # Session tokens can only call IAM APIs if they're created with MFA, so if no MFA just use the base credentials
+        return static_session
+    # If there is MFA, assume it protects the issuing of new keys, so create session credentials
+    token = _obtain_token(static_session, mfa_device, 900)
     return boto3.Session(
                             aws_access_key_id=token['AccessKeyId'],
                             aws_secret_access_key=token['SecretAccessKey'],
@@ -104,6 +111,10 @@ def import_credentials(args):
     config_file.save()
     print('Access key removed from {0}'.format(config_file.basename))
 
+    if not confirm('Do you want to rotate the access keys now? (Y/N): '):
+        return
+    rotate_credentials(args)
+
 
 def _ensure_single_access_key(user, base_credentials):
     inuse_access_key_id = base_credentials['aws_access_key_id']
@@ -128,9 +139,7 @@ def _ensure_single_access_key(user, base_credentials):
 def rotate_credentials(args):
     profile = args.profile
     base_credentials, config_file = _get_base_credentials([config.get_profile_credentials_file(profile)] + shared_config_files, profile)
-    static_session = boto3.Session(**base_credentials)
-    token = _obtain_token(static_session, _get_mfa_device(static_session), 900)
-    session = _create_session(token)
+    session = _create_session_for_iam(base_credentials)
     iam = session.resource('iam')
     user = iam.CurrentUser().user
 
