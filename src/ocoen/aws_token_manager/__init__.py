@@ -42,7 +42,10 @@ def _get_mfa_device(session):
 def _get_base_credentials(credential_files, profile_name):
     sections = ((f, f.get_profile_section(profile_name)) for f in credential_files)
     credentials = ((f, _extract_credentials(section)) for f, section in sections if section)
-    return next(((creds, f) for f, creds in credentials if creds))
+    base_credentials = next(((creds, f) for f, creds in credentials if creds), None)
+    if base_credentials:
+        return base_credentials
+    sys.exit('No static access credentals found.')
 
 
 def _extract_credentials(section):
