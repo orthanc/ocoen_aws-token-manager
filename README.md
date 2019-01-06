@@ -18,6 +18,18 @@ Effectively this gives access token use similar protections to use of the intera
 Currently this only issues session tokens for the same user that the static access tokens are for. A future enhancement
 is to also support assuming a different role through the same workflow.
 
+Security Warning
+----------------
+
+While all efforts have been made to follow security best practice, this project has not had an independent review.
+Ensure that you've conducted appropriate security review for your environment.
+
+Particularly note the security warning on [ocoen_filesecrets](https://github.com/orthanc/ocoen_filesecrets) which
+is used to store the encrypted credentials. Then again, it can hardly be worse than the plain text that is being
+replaced.
+
+Any feedback on potential or actual security issues would be highly appreciated.
+
 Examples And Usaage
 ===================
 
@@ -83,16 +95,49 @@ using the profile name (UTF-8 encoded) as the additional data.
 The encrypted contents has the same format as the [AWS Shared Credentials File](https://docs.aws.amazon.com/cli/latest/topic/config-vars.html#the-shared-credentials-file)
 but should only contain the section for the profile in use.
 
-To create the encrypted credential file use `fs-encrypt` from ocoen_filesecrets. E.g. if you've already got the access
-keys in the shared credentials file for the default profile, you can create the encrypted credential files by:
+The easiest way to do this is with the `atm import` command. Import finds the existing AWS credentials and creates an
+encrypted credentials file for you. The import command also gives you the option of removing the credentials from the
+existing unencrypted file and rotating the access keys. While these are optional it's strongly recommended you take
+these actions as there's minimal point encrypting the credentials if they also exist in an unencrypted file.
+
+For example, to encrypt your credentials from the default profile of the shared credentials file (`~/.aws/credentials`):
+
+    $ atm import
+    Password for credentials-default.enc:
+    Confirm Password for credentials-default.enc:
+    Access key encrypted into credentials-default.enc
+    Do you want to remove the credentials from credentials (you may loose comments and formatting)? (Y/N): y
+    Access key removed from credentials
+    Do you want to rotate the access keys now? (Y/N): y
+    MFA Token: 123456
+    Access key rotated
+
+To import the credentials from a different profile set the `AWS_PROFILE` environment variable or use the `--profile`
+option.
+
+### Working with the encrypted credentials file
+
+To directly work with the encrypted credentials file you can use the `fs-encrypt`, `fs-decrypt` and `fs-rekey` commands
+from [ocoen_filesecrets](https://github.com/orthanc/ocoen_filesecrets).
+
+To create the encrypted credential file use `fs-encrypt`. E.g. if you've already got the access keys in the shared
+credentials file for the default profile, you can create the encrypted credential files by:
 
     $ fs-encrypt ~/.aws/credentials ~/.aws/credentials-default.enc -d default
     Password:
     Confirm Password:
 
-See the [ocoen_filesecrets documentation](https://github.com/orthanc/ocoen_filesecrets) for more options.
+To inspect the current credentials in the credentials file use `fs-decrypt`:
 
-**TAKE NOTE OF THE SECURITY WARNING** in the ocoen_filesecrets docs.
+    $ fs-decrypt ~/.aws/credentials-default.enc - -d default | less
+    Password:
+
+To change the password on the encrypted credentials file use `fs-rekey`:
+
+    $ fs-rekey ~/.aws/credentials-default.enc -d default
+    Current Password:
+    New Password:
+    Confirm Password:
 
 Working with Profiles
 ---------------------
@@ -116,6 +161,23 @@ environment variable or use the `--profile` argument as shown below:
     Password for credentials-test.enc:
     MFA Token: 123456
     Token Obtained, valid til: 2019-01-05 03:36:24+13:00
+
+Rotating Access Keys
+--------------------
+
+The `atm rotate` command can be used to rotate the static access keys (i.e. generate a new access key and retire the
+existing one). This is particularly handy when working with encrypted credentials files as it avoids the need to copy
+paste the new access keys.
+
+To rotate the access keys simply run `atm rotate`:
+
+    $ atm rotate
+    Password for credentials-default.enc:
+    MFA Token: 123456
+    Access key rotated
+
+The `atm rotate` command updates the credentials in whatever file it finds them in, so can also be used to rotate
+credentials in the unencrypted shared credentials file or shared config file.
 
 Required AWS Permissions
 ========================
