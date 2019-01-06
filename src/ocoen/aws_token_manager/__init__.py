@@ -47,7 +47,10 @@ def _obtain_token(session, mfa_device, duration):
 
 
 def _get_mfa_device(session):
-    mfa_devices = list(session.resource('iam').CurrentUser().mfa_devices.all())
+    # CurrentUser().user is used because it limit listing of MFA devices by username. This allows the user to be
+    # granted permission to list only their own MFA devices.
+    # If CurrentUser().mfa_devices is used the user must be grated ListMFADevices for * which is undesirable
+    mfa_devices = list(session.resource('iam').CurrentUser().user.mfa_devices.all())
     if mfa_devices:
         return mfa_devices[0].serial_number
     return None
