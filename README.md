@@ -120,7 +120,62 @@ environment variable or use the `--profile` argument as shown below:
 Required AWS Permissions
 ========================
 
-TODO
+In order to be able to issue session tokens the user must have IAM access to call the following IAM APIs
+for their own user account **without requiring MFA** as these are used to determine if the user has an MFA device:
+
+* iam:ListMFADevices
+* iam:GetUser
+
+Additionally in order to support access key rotation the user must have IAM access to call the following IAM APIs
+for their ow user account. Though these can (and should) require MFA
+
+* iam:CreateAccessKey
+* iam:DeleteAccessKey
+* iam:ListAccessKeys
+
+It's recommended that the below IAM policy be applied to all users who are expected to use AWS Token Manager. This will
+grant the above permissions and require MFA for all operations other than GetUser and ListMFADevices:
+
+```JSON
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowUserInfo",
+      "Effect": "Allow",
+      "Action": [
+        "iam:ListMFADevices",
+        "iam:GetUser"
+      ],
+      "Resource": "arn:aws:iam::AWS-ACCOUNT-ID:user/${aws:username}"
+    },
+    {
+      "Sid": "DenyIfNoMfa",
+      "Effect": "Deny",
+      "NotAction": [
+        "iam:ListMFADevices",
+        "iam:GetUser"
+      ],
+      "Resource": "*",
+      "Condition": {
+        "BoolIfExists": {
+          "aws:MultiFactorAuthPresent": "false"
+        }
+      }
+    },
+    {
+      "Sid": "AllowAccessKeyRotation",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateAccessKey",
+        "iam:DeleteAccessKey",
+        "iam:ListAccessKeys"
+      ],
+      "Resource": "arn:aws:iam::AWS-ACCOUNT-ID:user/${aws:username}"
+    }
+  ]
+}
+```
 
 Why is this better than aws-cli?
 ================================
