@@ -1,0 +1,4 @@
+-i https://pypi.org/simple
+setuptools>=30.3
+-e git+https://github.com/orthanc/ocoen_filesecrets.git@master#egg=ocoen_filesecrets
+-e git+https://github.com/orthanc/ocoen_aws-token-manager.git@master#egg=ocoen_aws-token-manager
