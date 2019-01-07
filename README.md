@@ -41,7 +41,7 @@ that would be useful to you), so it should be installed from this source reposit
 [install-requirements.txt](install-requirements.txt) contains the necessary required modules so AWS Token Manager can be
 installed with the following command:
 
-    $ pip install -r https://github.com/orthanc/ocoen_aws-token-manager/raw/master/install-requirements.txt
+    $ pip install -r https://raw.githubusercontent.com/orthanc/ocoen_aws-token-manager/master/install-requirements.txt
 
 If you want to isolate the install and it's dependencies from other python utilities I suggest using [pipenv](https://pipenv.readthedocs.io/en/latest/).
 First, install pipenv, then:
@@ -50,11 +50,12 @@ Install AWS Token Manager using pipenv:
 
     $ mkdir aws-token-manager
     $ cd aws-token-manager
-    $ PIPENV_VENV_IN_PROJECT=True PIPENV_SKIP_LOCK=True pipenv --three install -r https://github.com/orthanc/ocoen_aws-token-manager/raw/master/install-requirements.txt
+    $ wget https://raw.githubusercontent.com/orthanc/ocoen_aws-token-manager/master/install-requirements.txt
+    $ PIPENV_VENV_IN_PROJECT=True PIPENV_SKIP_LOCK=True pipenv --three install -r install-requirements.txt
 
 Alias the atm command in your ~/.profile:
 
-    alias atm="PIPENV_PIP_FILE='<LOCATION OF AWS TOKEN MANAGER>/Pipfile pipenv run atm"
+    alias atm="PIPENV_VENV_IN_PROJECT=True PIPENV_PIP_FILE='<LOCATION OF AWS TOKEN MANAGER>/Pipfile' pipenv run atm"
 
 Examples And Usaage
 ===================
