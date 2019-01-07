@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "d268dbe63a945104fe49c5ea0eed4994477b9b4eca81ea1e1926a0c84b8a6f1a"
+            "sha256": "64994651e21f12dee4d34ca1ffbcd8d0d6d74c7342722ad85255c3052fc61f23"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -18,17 +18,17 @@
     "default": {
         "boto3": {
             "hashes": [
-                "sha256:926e5102a29442bc3e63c7f5e51549ef656c40ca70c8a62a18e983df5bbc6330",
-                "sha256:d5060d69745e612ade9652c43de55fa1971b6fffce525c05687a0b5e42eef238"
+                "sha256:1ed36e390a64d9f45fbcc71f835a43b2fef437cc89d6fd9306c6396b10b8ec29",
+                "sha256:db5704a505d8af01cdbc57682797e8b1784a31a37d24a82f4855c270cd5f8b2f"
             ],
-            "version": "==1.9.73"
+            "version": "==1.9.74"
         },
         "botocore": {
             "hashes": [
-                "sha256:efa9afa2176fe3b26777d7439b2f45586dae8d12a66f8fa91165b55f7e5c8d9a",
-                "sha256:fe4721a23f21e20794527a6e407c4ebcd725a8ea91782291b10521092d4c5b2e"
+                "sha256:0d21a6a163033792c759d8bc03a9267cd00813b3c2136cc626a0a2d0ed7f7cfb",
+                "sha256:1af5c692b8af8c6f955af8e2e4daad3186eab382ead24b517006462b0f71cc13"
             ],
-            "version": "==1.12.73"
+            "version": "==1.12.74"
         },
         "docutils": {
             "hashes": [
@@ -52,7 +52,7 @@
         "ocoen-filesecrets": {
             "editable": true,
             "git": "https://github.com/orthanc/ocoen_filesecrets.git",
-            "ref": "44f0d2d5a518679e3779ddecb657f91ed910e5ba"
+            "ref": "d9127f0483a33609d9b0021695302760e1ff12de"
         },
         "pycryptodome": {
             "hashes": [
@@ -186,11 +186,11 @@
         },
         "pytest": {
             "hashes": [
-                "sha256:f689bf2fc18c4585403348dd56f47d87780bf217c53ed9ae7a3e2d7faa45f8e9",
-                "sha256:f812ea39a0153566be53d88f8de94839db1e8a05352ed8a49525d7d7f37861e9"
+                "sha256:3e65a22eb0d4f1bdbc1eacccf4a3198bf8d4049dea5112d70a0c61b00e748d02",
+                "sha256:5924060b374f62608a078494b909d341720a050b5224ff87e17e12377486a71d"
             ],
             "index": "pypi",
-            "version": "==4.0.2"
+            "version": "==4.1.0"
         },
         "six": {
             "hashes": [
