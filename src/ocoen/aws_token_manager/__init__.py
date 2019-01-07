@@ -9,7 +9,7 @@ import boto3
 from ocoen.aws_token_manager import config
 from ocoen.aws_token_manager.tty import confirm, if_tty, if_not_tty, tty, tty_input
 
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 
 # See https://docs.aws.amazon.com/cli/latest/topic/config-vars.html
 shared_config_files = [config.shared_config_file, config.shared_credentials_file]
