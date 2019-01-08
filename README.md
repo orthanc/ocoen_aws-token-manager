@@ -15,8 +15,8 @@ to enable access for a limited period of time, after which they have to re-authe
 
 Effectively this gives access token use similar protections to use of the interactive console with 2FA enabled.
 
-Currently this only issues session tokens for the same user that the static access tokens are for. A future enhancement
-is to also support assuming a different role through the same workflow.
+Like the AWS CLI this utility supports assuming a role rather than just obtaining a session token, so can also be used
+when a role is required, even if the tool to be called does not support assuming roles.
 
 Security Warning
 ----------------
@@ -95,6 +95,11 @@ lifetime). E.g. to request a token that's only valid for 15 minutes:
     $ eval $(atm -t $((15 * 60)))
     MFA Token: 123456
     Token Obtained, valid til: 2019-01-05 03:36:24+13:00
+
+It's also possible to specify a default lifetime of session tokes by specifying the `duration_seconds` option in the
+shared configuration file (`~/.aws/config`). This option is described in the [AWS CLI Configuration Documentation](https://docs.aws.amazon.com/cli/latest/topic/config-vars.html#using-aws-iam-roles)
+though the AWS Token Manager respects it for both obtaining session tokens and assuming roles.
+Note that a command line`-t` or `--life` takes precedence over `duration_seconds`.
 
 Using Encrypted Credentials
 ---------------------------
@@ -205,6 +210,25 @@ To rotate the access keys simply run `atm rotate`:
 
 The `atm rotate` command updates the credentials in whatever file it finds them in, so can also be used to rotate
 credentials in the unencrypted shared credentials file or shared config file.
+
+Assuming a Role
+---------------
+
+To assume a role configure a profile with a `role_arn` and `source_profile` in the [same was as for AWS CLI](https://docs.aws.amazon.com/cli/latest/topic/config-vars.html#using-aws-iam-roles).
+For example:
+
+  # In ~/.aws/config
+  [profile crossaccount]
+  role_arn=arn:aws:iam:...
+  source_profile=development
+
+The source profile credentials can be defined in the shared credentials or config file as normal, or in an encrypted
+credentials file. Unlike the AWS CLI the `mfa_serial` option is ignored, rather if there is an MFA device associated
+with the account the user will be prompted for an MFA token.
+
+The `extenal_id`, `role_session_name` and `duration_sections` options are all supported and function the same way as
+described in the [AWS CLI Configuration Documentation](https://docs.aws.amazon.com/cli/latest/topic/config-vars.html#using-aws-iam-roles).
+Note that a command line`-t` or `--life` takes precedence over `duration_seconds`.
 
 Required AWS Permissions
 ========================
