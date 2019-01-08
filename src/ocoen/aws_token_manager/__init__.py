@@ -44,7 +44,7 @@ def _obtain_session_token(session, mfa_device, duration):
         args['SerialNumber'] = mfa_device
         args['TokenCode'] = mfa_code
     if duration:
-        args['DurationSeconds'] = duration
+        args['DurationSeconds'] = int(duration)
 
     return session.client('sts').get_session_token(**args)['Credentials']
 
@@ -99,7 +99,8 @@ def obtain_and_export_token(args):
 
     session = boto3.Session(**base_credentials)
     mfa_device = _get_mfa_device(session)
-    token = _obtain_session_token(session, mfa_device, args.life)
+    duration_seconds = args.life or profile_config.get('duration_seconds', None)
+    token = _obtain_session_token(session, mfa_device, duration_seconds)
 
     _export_token(token)
     with tty():
