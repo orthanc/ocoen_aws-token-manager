@@ -53,9 +53,9 @@ Install AWS Token Manager using pipenv:
     $ wget https://raw.githubusercontent.com/orthanc/ocoen_aws-token-manager/master/install-requirements.txt
     $ PIPENV_VENV_IN_PROJECT=True PIPENV_SKIP_LOCK=True pipenv --three install -r install-requirements.txt
 
-Alias the atm command in your ~/.profile:
+Link the `atm` command into `~/.local/bin` so it's on the path:
 
-    alias atm="PIPENV_VENV_IN_PROJECT=True PIPENV_PIP_FILE='<LOCATION OF AWS TOKEN MANAGER>/Pipfile' pipenv run atm"
+    $ ln -s "${PWD}/.venv/bin/atm" ~/.local/bin/
 
 Examples And Usaage
 ===================
