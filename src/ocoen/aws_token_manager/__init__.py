@@ -1,8 +1,9 @@
+import argparse
 import os
 # Importing readline makes input behave nicer (e.g. backspace works) so not actually unused
 import readline  # NOQA
 import sys
-import argparse
+import time
 
 import boto3
 
@@ -49,6 +50,23 @@ def _obtain_session_token(session, mfa_device, duration):
     return session.client('sts').get_session_token(**args)['Credentials']
 
 
+def _assume_role(session, role_arn, mfa_device, duration, role_config):
+    args = {
+        'RoleArn': role_arn,
+        'RoleSessionName': role_config.get('session_name', 'AWS-CLI-session-{0}'.format(int(time.time())))
+    }
+    if 'external_id' in role_config:
+        args['ExternalId'] = role_config['external_id']
+    if mfa_device:
+        mfa_code = tty_input('MFA Token: ')
+        args['SerialNumber'] = mfa_device
+        args['TokenCode'] = mfa_code
+    if duration:
+        args['DurationSeconds'] = int(duration)
+
+    return session.client('sts').assume_role(**args)['Credentials']
+
+
 def _get_mfa_device(session):
     # CurrentUser().user is used because it limit listing of MFA devices by username. This allows the user to be
     # granted permission to list only their own MFA devices.
@@ -59,7 +77,7 @@ def _get_mfa_device(session):
     return None
 
 
-def _get_base_credentials(profile, include_encrypted=True):
+def _get_base_credentials(profile, include_encrypted=True, exit_if_none=True):
     credential_files = shared_config_files
     if include_encrypted:
         credential_files = [config.get_profile_credentials_file(profile)] + credential_files
@@ -67,7 +85,9 @@ def _get_base_credentials(profile, include_encrypted=True):
     base_credentials = next((x for x in credentials_gen if x[0]), None)
     if base_credentials:
         return base_credentials
-    sys.exit('No static access credentals found.')
+    if exit_if_none:
+        sys.exit('No static access credentals found for profile {0}.'.format(profile))
+    return None, None
 
 
 def _extract_credentials(config_file, profile):
@@ -95,16 +115,27 @@ def _extract_credentials(config_file, profile):
 @if_not_tty(prompt='Output is a terminal. Did you mean to run \'eval $(atm)\' instead ?\nDo you really want to write the access tokens? (Y/N): ')
 def obtain_and_export_token(args):
     profile = args.profile
-    base_credentials = _get_base_credentials(profile)[0]
+    profile_config = config.shared_config_file.get_profile_section(profile) or {}
+    role_arn, source_profile = profile_config.get('role_arn', None), profile_config.get('source_profile', None)
+    check_source_profile = role_arn and source_profile
+    base_credentials = _get_base_credentials(profile, exit_if_none=not check_source_profile)[0]
+    if not base_credentials and check_source_profile:
+        base_credentials = _get_base_credentials(source_profile, exit_if_none=True)[0]
 
     session = boto3.Session(**base_credentials)
     mfa_device = _get_mfa_device(session)
     duration_seconds = args.life or profile_config.get('duration_seconds', None)
-    token = _obtain_session_token(session, mfa_device, duration_seconds)
+    if role_arn:
+        token = _assume_role(session, role_arn, mfa_device, duration_seconds, profile_config)
+    else:
+        token = _obtain_session_token(session, mfa_device, duration_seconds)
 
     _export_token(token)
     with tty():
-        print('Token Obtained, valid til: {0}'.format(token['Expiration'].astimezone(tz=None)))
+        if role_arn:
+            print('Role Assumed, valid til: {0}'.format(token['Expiration'].astimezone(tz=None)))
+        else:
+            print('Token Obtained, valid til: {0}'.format(token['Expiration'].astimezone(tz=None)))
 
 
 @if_tty(error_message='stdin and stdout must be a tty when importing credentials.')
