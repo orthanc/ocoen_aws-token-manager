@@ -19,6 +19,7 @@ def _export_token(token):
     print("export AWS_ACCESS_KEY_ID='" + token['AccessKeyId'] + "';")
     print("export AWS_SECRET_ACCESS_KEY='" + token['SecretAccessKey'] + "';")
     print("export AWS_SESSION_TOKEN='" + token['SessionToken'] + "';")
+    print("export AWS_SESSION_EXPIRY='" + str(token['Expiration'].astimezone(tz=None)) + "';")
 
 
 def _create_session_for_iam(base_credentials):
@@ -28,7 +29,7 @@ def _create_session_for_iam(base_credentials):
         # Session tokens can only call IAM APIs if they're created with MFA, so if no MFA just use the base credentials
         return static_session
     # If there is MFA, assume it protects the issuing of new keys, so create session credentials
-    token = _obtain_token(static_session, mfa_device, 900)
+    token = _obtain_session_token(static_session, mfa_device, 900)
     return boto3.Session(
                             aws_access_key_id=token['AccessKeyId'],
                             aws_secret_access_key=token['SecretAccessKey'],
@@ -36,7 +37,7 @@ def _create_session_for_iam(base_credentials):
                         )
 
 
-def _obtain_token(session, mfa_device, duration):
+def _obtain_session_token(session, mfa_device, duration):
     args = {}
     if mfa_device:
         mfa_code = tty_input('MFA Token: ')
@@ -58,16 +59,24 @@ def _get_mfa_device(session):
     return None
 
 
-def _get_base_credentials(credential_files, profile_name):
-    sections = ((f, f.get_profile_section(profile_name)) for f in credential_files)
-    credentials = ((f, _extract_credentials(section)) for f, section in sections if section)
-    base_credentials = next(((creds, f) for f, creds in credentials if creds), None)
+def _get_base_credentials(profile, include_encrypted=True):
+    credential_files = shared_config_files
+    if include_encrypted:
+        credential_files = [config.get_profile_credentials_file(profile)] + credential_files
+    credentials_gen = ((_extract_credentials(f, profile), f) for f in credential_files)
+    base_credentials = next((x for x in credentials_gen if x[0]), None)
     if base_credentials:
         return base_credentials
     sys.exit('No static access credentals found.')
 
 
-def _extract_credentials(section):
+def _extract_credentials(config_file, profile):
+    if not config_file:
+        return None
+    section = config_file.get_profile_section(profile)
+    if not section:
+        return None
+
     access_key = section.get('aws_access_key_id', None)
     secret_key = section.get('aws_secret_access_key', None)
     token = section.get('aws_session_token', None)
@@ -86,9 +95,12 @@ def _extract_credentials(section):
 @if_not_tty(prompt='Output is a terminal. Did you mean to run \'eval $(atm)\' instead ?\nDo you really want to write the access tokens? (Y/N): ')
 def obtain_and_export_token(args):
     profile = args.profile
-    base_credentials = _get_base_credentials([config.get_profile_credentials_file(profile)] + shared_config_files, profile)[0]
+    base_credentials = _get_base_credentials(profile)[0]
+
     session = boto3.Session(**base_credentials)
-    token = _obtain_token(session, _get_mfa_device(session), args.life)
+    mfa_device = _get_mfa_device(session)
+    token = _obtain_session_token(session, mfa_device, args.life)
+
     _export_token(token)
     with tty():
         print('Token Obtained, valid til: {0}'.format(token['Expiration'].astimezone(tz=None)))
@@ -101,7 +113,7 @@ def import_credentials(args):
     if (profile_credentials_file.exists
             and not confirm('{0} exists, do you want to replace it? (Y/N): '.format(profile_credentials_file.basename))):
         sys.exit('Aborted')
-    base_credentials, config_file = _get_base_credentials(shared_config_files, profile)
+    base_credentials, config_file = _get_base_credentials(profile, include_encrypted=False)
 
     profile_credentials_file.new_config()
     profile_credentials_file.new_profile_section(profile, base_credentials)
@@ -143,7 +155,7 @@ def _ensure_single_access_key(user, base_credentials):
 @if_tty(error_message='stdin and stdout must be a tty when rotateing credentials.')
 def rotate_credentials(args):
     profile = args.profile
-    base_credentials, config_file = _get_base_credentials([config.get_profile_credentials_file(profile)] + shared_config_files, profile)
+    base_credentials, config_file = _get_base_credentials(profile)
     session = _create_session_for_iam(base_credentials)
     iam = session.resource('iam')
     user = iam.CurrentUser().user
