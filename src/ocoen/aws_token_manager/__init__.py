@@ -23,9 +23,9 @@ def _export_token(token):
     print("export AWS_SESSION_EXPIRY='" + str(token['Expiration'].astimezone(tz=None)) + "';")
 
 
-def _create_session_for_iam(base_credentials):
+def _create_session_for_iam(base_credentials, profile_config):
     static_session = boto3.Session(**base_credentials)
-    mfa_device = _get_mfa_device(static_session)
+    mfa_device = _get_mfa_device(static_session, profile_config)
     if not mfa_device:
         # Session tokens can only call IAM APIs if they're created with MFA, so if no MFA just use the base credentials
         return static_session
@@ -67,7 +67,9 @@ def _assume_role(session, role_arn, mfa_device, duration, role_config):
     return session.client('sts').assume_role(**args)['Credentials']
 
 
-def _get_mfa_device(session):
+def _get_mfa_device(session, profile_config):
+    if profile_config.get("mfa_serial"):
+        return profile_config.get("mfa_serial")
     # CurrentUser().user is used because it limit listing of MFA devices by username. This allows the user to be
     # granted permission to list only their own MFA devices.
     # If CurrentUser().mfa_devices is used the user must be grated ListMFADevices for * which is undesirable
@@ -123,7 +125,7 @@ def obtain_and_export_token(args):
         base_credentials = _get_base_credentials(source_profile, exit_if_none=True)[0]
 
     session = boto3.Session(**base_credentials)
-    mfa_device = _get_mfa_device(session)
+    mfa_device = _get_mfa_device(session, profile_config)
     duration_seconds = args.life or profile_config.get('duration_seconds', None)
     if role_arn:
         token = _assume_role(session, role_arn, mfa_device, duration_seconds, profile_config)
@@ -187,8 +189,9 @@ def _ensure_single_access_key(user, base_credentials):
 @if_tty(error_message='stdin and stdout must be a tty when rotateing credentials.')
 def rotate_credentials(args):
     profile = args.profile
+    profile_config = config.shared_config_file.get_profile_section(profile) or {}
     base_credentials, config_file = _get_base_credentials(profile)
-    session = _create_session_for_iam(base_credentials)
+    session = _create_session_for_iam(base_credentials, profile_config)
     iam = session.resource('iam')
     user = iam.CurrentUser().user
 
