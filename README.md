@@ -230,6 +230,9 @@ The `extenal_id`, `role_session_name` and `duration_sections` options are all su
 described in the [AWS CLI Configuration Documentation](https://docs.aws.amazon.com/cli/latest/topic/config-vars.html#using-aws-iam-roles).
 Note that a command line`-t` or `--life` takes precedence over `duration_seconds`.
 
+`mfa_serial` can also be specified but is usually unnecessary as AWS Token Manager will lookup the MFA device for
+the current user.
+
 Required AWS Permissions
 ========================
 
@@ -237,7 +240,9 @@ In order to be able to issue session tokens the user must have IAM access to cal
 for their own user account **without requiring MFA** as these are used to determine if the user has an MFA device:
 
 * iam:ListMFADevices
-* iam:GetUser
+
+*NB:* if ListMFADevices permission is not avalible you can specify the MFA device using `mfa_serial` as described in
+the [AWS CLI Configuration Documentation](https://docs.aws.amazon.com/cli/latest/topic/config-vars.html#using-aws-iam-roles).
 
 Additionally in order to support access key rotation the user must have IAM access to call the following IAM APIs
 for their ow user account. Though these can (and should) require MFA

@@ -70,13 +70,21 @@ def _assume_role(session, role_arn, mfa_device, duration, role_config):
 def _get_mfa_device(session, profile_config):
     if profile_config.get("mfa_serial"):
         return profile_config.get("mfa_serial")
-    # CurrentUser().user is used because it limit listing of MFA devices by username. This allows the user to be
-    # granted permission to list only their own MFA devices.
-    # If CurrentUser().mfa_devices is used the user must be grated ListMFADevices for * which is undesirable
-    mfa_devices = list(session.resource('iam').CurrentUser().user.mfa_devices.all())
+    # CurrentUser() is not used because it requiers the GetUser permission, futher
+    # CurrentUser().mfa_devices is used the user must be grated ListMFADevices for * which is undesirable
+    mfa_devices = list(session.resource('iam').User(_get_current_username(session)).mfa_devices.all())
     if mfa_devices:
         return mfa_devices[0].serial_number
     return None
+
+
+def _get_current_username(session):
+    caller_identity = session.client('sts').get_caller_identity()
+    # Parse the ARN rather than looking up the user by id since looking up the user
+    # requires the additional GetUser permission
+    arn = caller_identity['Arn']
+    name_part = arn.split(':')[-1]
+    return name_part.split('/', 1)[1]
 
 
 def _get_base_credentials(profile, include_encrypted=True, exit_if_none=True):
@@ -193,7 +201,7 @@ def rotate_credentials(args):
     base_credentials, config_file = _get_base_credentials(profile)
     session = _create_session_for_iam(base_credentials, profile_config)
     iam = session.resource('iam')
-    user = iam.CurrentUser().user
+    user = iam.User(_get_current_username(session))
 
     inuse_access_key = _ensure_single_access_key(user, base_credentials)
     new_access_key = user.create_access_key_pair()
