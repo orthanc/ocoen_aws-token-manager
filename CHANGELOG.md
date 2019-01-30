@@ -1,3 +1,9 @@
+0.3.0
+=====
+
+* Support for specifying a MFA device in aws config using `mfa_serial` rather than discoveringa the MFA device
+* Remove requirement for `iam:GetUser` permission to work with more constrained environments
+
 0.2.0
 =====
 
