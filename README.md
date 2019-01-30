@@ -217,10 +217,12 @@ Assuming a Role
 To assume a role configure a profile with a `role_arn` and `source_profile` in the [same was as for AWS CLI](https://docs.aws.amazon.com/cli/latest/topic/config-vars.html#using-aws-iam-roles).
 For example:
 
-  # In ~/.aws/config
-  [profile crossaccount]
-  role_arn=arn:aws:iam:...
-  source_profile=development
+```
+# In ~/.aws/config
+[profile crossaccount]
+role_arn=arn:aws:iam:...
+source_profile=development
+```
 
 The source profile credentials can be defined in the shared credentials or config file as normal, or in an encrypted
 credentials file. Unlike the AWS CLI the `mfa_serial` option is ignored, rather if there is an MFA device associated
@@ -252,7 +254,7 @@ for their ow user account. Though these can (and should) require MFA
 * iam:ListAccessKeys
 
 It's recommended that the below IAM policy be applied to all users who are expected to use AWS Token Manager. This will
-grant the above permissions and require MFA for all operations other than GetUser and ListMFADevices:
+grant the above permissions and require MFA for all operations other than ListMFADevices:
 
 ```JSON
 {
@@ -263,7 +265,6 @@ grant the above permissions and require MFA for all operations other than GetUse
       "Effect": "Allow",
       "Action": [
         "iam:ListMFADevices",
-        "iam:GetUser"
       ],
       "Resource": "arn:aws:iam::AWS-ACCOUNT-ID:user/${aws:username}"
     },
@@ -272,7 +273,6 @@ grant the above permissions and require MFA for all operations other than GetUse
       "Effect": "Deny",
       "NotAction": [
         "iam:ListMFADevices",
-        "iam:GetUser"
       ],
       "Resource": "*",
       "Condition": {
