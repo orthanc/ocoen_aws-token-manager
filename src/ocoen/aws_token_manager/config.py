@@ -8,13 +8,32 @@ from getpass import getpass
 
 from ocoen import filesecrets
 
-config_files = {}
-
 
 class FileFormat(Enum):
     CONFIG = 'config'
     CREDENTIALS = 'credentials'
     ENCRYPTED_CREDENTIALS = 'encrypted_credentials'
+
+
+class FileDef(object):
+    def __init__(self, fmt, base_def=None, suffix=None, env_name=None, path=None):
+        self.fmt = fmt
+        self.base_def = base_def
+        self.suffix = suffix
+        self.env_name = env_name
+        self._path = path
+
+    @property
+    def path(self):
+        path = None
+        if self.env_name:
+            path = os.environ.get(self.env_name)
+        if not path:
+            if self._path:
+                path = self._path
+            else:
+                path = self.base_def.path + self.suffix
+        return os.path.expanduser(path)
 
 
 class ConfigFile(object):
@@ -85,27 +104,18 @@ class ConfigFile(object):
             return profile_name
 
 
-def get_config_file(path, file_format, additional_data=None):
-    if path not in config_files:
-        prefix_sections = file_format == FileFormat.CONFIG
-        encrypted = file_format == FileFormat. ENCRYPTED_CREDENTIALS
-        config_files[path] = ConfigFile(path, prefix_sections, encrypted, additional_data)
-    return config_files[path]
+def get_config_files(*file_defs, profile):
+    return [get_config_file(file_def, profile) for file_def in file_defs]
 
 
-shared_config_file = get_config_file(
-    path=os.environ.get('AWS_CONFIG_FILE', os.path.expanduser(os.path.join('~', '.aws', 'config'))),
-    file_format=FileFormat.CONFIG,
-)
-shared_credentials_file = get_config_file(
-    path=os.environ.get('AWS_SHARED_CREDENTIALS_FILE', os.path.expanduser(os.path.join('~', '.aws', 'credentials'))),
-    file_format=FileFormat.CREDENTIALS,
-)
+def get_config_file(file_def, profile):
+    config_file = _config_files.get(file_def.path)
+    if not config_file:
+        prefix_sections = file_def.fmt == FileFormat.CONFIG
+        encrypted = file_def.fmt == FileFormat.ENCRYPTED_CREDENTIALS
+        config_file = ConfigFile(file_def.path, prefix_sections, encrypted, profile and profile.encode('UTF-8'))
+        _config_files[file_def.path] = config_file
+    return config_file
 
 
-def get_profile_credentials_file(profile_name):
-    return get_config_file(
-        path='{0}-{1}.enc'.format(shared_credentials_file.path, profile_name),
-        file_format=FileFormat.ENCRYPTED_CREDENTIALS,
-        additional_data=profile_name.encode('UTF-8'),
-    )
+_config_files = {}
