@@ -27,9 +27,9 @@ def _export_token(token):
     print("export AWS_SESSION_EXPIRY='" + str(token['Expiration'].astimezone(tz=None)) + "';")
 
 
-def _create_session_for_iam(base_credentials, profile_config):
+def _create_session_for_iam(base_credentials, profile):
     static_session = boto3.Session(**base_credentials)
-    mfa_device = _get_mfa_device(static_session, profile_config)
+    mfa_device = _get_mfa_device(static_session, profile)
     if not mfa_device:
         # Session tokens can only call IAM APIs if they're created with MFA, so if no MFA just use the base credentials
         return static_session
@@ -71,8 +71,9 @@ def _assume_role(session, role_arn, mfa_device, duration, role_config):
     return session.client('sts').assume_role(**args)['Credentials']
 
 
-def _get_mfa_device(session, profile_config):
-    if profile_config.get("mfa_serial"):
+def _get_mfa_device(session, profile):
+    profile_config = shared_config_file.get_profile_section(profile)
+    if profile_config and profile_config.get("mfa_serial"):
         return profile_config.get("mfa_serial")
     # CurrentUser() is not used because it requiers the GetUser permission, futher
     # CurrentUser().mfa_devices is used the user must be grated ListMFADevices for * which is undesirable
@@ -94,7 +95,8 @@ def _get_current_username(session):
 def _get_base_credentials(profile, credential_file_defs=None, exit_if_none=True):
     if not credential_file_defs:
         credential_file_defs = _get_credential_file_defs(profile)
-    credential_files = get_credential_files(*credential_file_defs, profile=profile)
+    profile_config = shared_config_file.get_profile_section(profile) or {}
+    credential_files = get_credential_files(*credential_file_defs, profile=profile, profile_config=profile_config)
     credentials_gen = ((f.get_credentials(), f) for f in credential_files)
     base_credentials = next((x for x in credentials_gen if x[0]), None)
     if base_credentials:
@@ -108,15 +110,15 @@ def _get_base_credentials(profile, credential_file_defs=None, exit_if_none=True)
 def obtain_and_export_token(args):
     profile = args.profile
     profile_config = shared_config_file.get_profile_section(profile) or {}
-    role_arn, source_profile = profile_config.get('role_arn', None), profile_config.get('source_profile', None)
+    role_arn, source_profile = profile_config.get('role_arn'), profile_config.get('source_profile')
     check_source_profile = role_arn and source_profile
     base_credentials = _get_base_credentials(profile, exit_if_none=not check_source_profile)[0]
     if not base_credentials and check_source_profile:
         base_credentials = _get_base_credentials(source_profile, exit_if_none=True)[0]
 
     session = boto3.Session(**base_credentials)
-    mfa_device = _get_mfa_device(session, profile_config)
-    duration_seconds = args.life or profile_config.get('duration_seconds', None)
+    mfa_device = _get_mfa_device(session, profile)
+    duration_seconds = args.life or profile_config.get('duration_seconds')
     if role_arn:
         token = _assume_role(session, role_arn, mfa_device, duration_seconds, profile_config)
     else:
@@ -133,10 +135,11 @@ def obtain_and_export_token(args):
 @if_tty(error_message='stdin and stdout must be a tty when importing credentials.')
 def import_credentials(args):
     profile = args.profile
+    profile_config = shared_config_file.get_profile_section(profile) or {}
     credential_file_defs = _get_credential_file_defs(profile)
     target_def = next((d for d in credential_file_defs if d.is_import_target))
     other_credential_file_defs = [d for d in credential_file_defs if d is not target_def]
-    target_credentials_file = get_credential_file(target_def, profile)
+    target_credentials_file = get_credential_file(target_def, profile, profile_config)
     if target_credentials_file.exists:
         if target_def.fmt == FileFormat.KEEPASS:
             if (target_credentials_file.get_credentials()
@@ -181,9 +184,8 @@ def _ensure_single_access_key(user, base_credentials):
 @if_tty(error_message='stdin and stdout must be a tty when rotating credentials.')
 def rotate_credentials(args):
     profile = args.profile
-    profile_config = shared_config_file.get_profile_section(profile) or {}
     base_credentials, credential_file = _get_base_credentials(profile)
-    session = _create_session_for_iam(base_credentials, profile_config)
+    session = _create_session_for_iam(base_credentials, profile)
     iam = session.resource('iam')
     user = iam.User(_get_current_username(session))
 
@@ -207,7 +209,6 @@ def _get_credential_file_defs(profile):
 @if_not_tty(prompt='Output is a terminal.\nDo you really want to export the access tokens? (Y/N): ')
 def export_credentials(args):
     profile = args.profile
-    profile_config = shared_config_file.get_profile_section(profile) or {}
     base_credentials, credential_file = _get_base_credentials(profile)
     print('# Exported from {0}'.format(credential_file.basename))
     print('[{0}]'.format(profile))

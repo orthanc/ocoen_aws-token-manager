@@ -168,9 +168,11 @@ class ConfigCredentialsFile:
 
 
 class KeepassCredentialsFile:
-    def __init__(self, path, profile):
+    def __init__(self, path, access_key_path):
         self._path = path
-        self._profile = profile
+        self._access_key_path = access_key_path
+        if not access_key_path.startswith('/'):
+            self._access_key_path = '/' + access_key_path
         self._keepass = None
         self.basename = os.path.basename(path)
         self.exists = os.path.exists(path)
@@ -188,7 +190,7 @@ class KeepassCredentialsFile:
         if not keepass:
             return None
         entry = keepass.find_entries(
-            path='AWS/' + self._profile + ' Access Key',
+            path=self._access_key_path,
             first=True,
         )
         if not entry:
@@ -204,25 +206,30 @@ class KeepassCredentialsFile:
 
     def update_credentials(self, access_key_id, secret_access_key):
         keepass = self._get_keepass()
-        aws_group = keepass.find_groups(path='AWS/', first=True)
-        if not aws_group:
-            aws_group = keepass.add_group(keepass.root_group, 'AWS')
         entry = keepass.find_entries(
-            path='AWS/' + self._profile + ' Access Key',
+            path=self._access_key_path,
             first=True,
         )
         if entry:
             entry.username = access_key_id
             entry.password = secret_access_key
         else:
-            entry = keepass.add_entry(aws_group, self._profile + ' Access Key', access_key_id, secret_access_key)
+            path_parts = self._access_key_path.split('/')
+            group = keepass.root_group
+            for group_name in path_parts[1:-1]:
+                child_group = keepass.find_groups(group=group, name=group_name, first=True, recursive=False)
+                if child_group:
+                    group = child_group
+                else:
+                    group = keepass.add_group(group, group_name)
+            entry = keepass.add_entry(group, path_parts[-1], access_key_id, secret_access_key)
 
         keepass.save()
 
     def remove_credentials(self):
         keepass = self._get_keepass()
         entry = keepass.find_entries(
-            path='aws/' + self._profile + '-access_key',
+            path=self._access_key_path,
             first=True,
         )
         if entry:
@@ -230,15 +237,16 @@ class KeepassCredentialsFile:
             keepass.save()
 
 
-def get_credential_files(*file_defs, profile):
-    return [get_credential_file(file_def, profile) for file_def in file_defs]
+def get_credential_files(*file_defs, profile, profile_config):
+    return [get_credential_file(file_def, profile, profile_config) for file_def in file_defs]
 
 
-def get_credential_file(file_def, profile):
+def get_credential_file(file_def, profile, profile_config):
     credential_file = _credential_files.get(file_def.path)
     if not credential_file:
         if file_def.fmt == FileFormat.KEEPASS:
-            credential_file = KeepassCredentialsFile(file_def.path, profile)
+            access_key_path = profile_config.get('access_key_path', '/AWS/' + profile + ' Access Key')
+            credential_file = KeepassCredentialsFile(file_def.path, access_key_path)
         else:
             credential_file = ConfigCredentialsFile(get_config_file(file_def, profile), profile)
         _credential_files[file_def.path] = credential_file
