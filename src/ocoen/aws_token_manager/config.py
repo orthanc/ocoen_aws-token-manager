@@ -104,8 +104,63 @@ class ConfigFile(object):
             return profile_name
 
 
-def get_config_files(*file_defs, profile):
-    return [get_config_file(file_def, profile) for file_def in file_defs]
+class ConfigCredentialsFile:
+    def __init__(self, config_file, profile):
+        self._config_file = config_file
+        self._profile = profile
+        self.exists = config_file.exists
+        self.basename = config_file.basename
+
+    def get_credentials(self):
+        section = self._config_file.get_profile_section(self._profile)
+        if not section:
+            return None
+
+        access_key = section.get('aws_access_key_id')
+        secret_key = section.get('aws_secret_access_key')
+        token = section.get('aws_session_token')
+        if not (access_key and secret_key):
+            return None
+
+        ret = {
+            'aws_access_key_id': access_key,
+            'aws_secret_access_key': secret_key,
+        }
+        if token:
+            ret['aws_session_token'] = token,
+        return ret
+
+    def set_credentials(self, credentials):
+        self._config_file.new_config()
+        self._config_file.new_profile_section(self._profile, credentials)
+        self._config_file.save()
+
+    def update_credentials(self, access_key_id, secret_access_key):
+        section = self._config_file.get_profile_section(self._profile)
+        section['aws_access_key_id'] = access_key_id
+        section['aws_secret_access_key'] = secret_access_key
+        if 'aws_session_token' in section:
+            del section['aws_session_token']
+        self._config_file.save()
+
+    def remove_credentials(self):
+        section = self._config_file.get_profile_section(self._profile)
+        for k in ['aws_access_key_id', 'aws_secret_access_key', 'aws_session_token']:
+            if k in section:
+                del section[k]
+        self._config_file.save()
+
+
+def get_credential_files(*file_defs, profile):
+    return [get_credential_file(file_def, profile) for file_def in file_defs]
+
+
+def get_credential_file(file_def, profile):
+    credential_file = _credential_files.get(file_def.path)
+    if not credential_file:
+        credential_file = ConfigCredentialsFile(get_config_file(file_def, profile), profile)
+        _credential_files[file_def.path] = credential_file
+    return credential_file
 
 
 def get_config_file(file_def, profile):
@@ -119,3 +174,4 @@ def get_config_file(file_def, profile):
 
 
 _config_files = {}
+_credential_files = {}

@@ -7,7 +7,7 @@ import time
 
 import boto3
 
-from ocoen.aws_token_manager.config import FileDef, FileFormat, get_config_file, get_config_files
+from ocoen.aws_token_manager.config import FileDef, FileFormat, get_config_file, get_credential_file, get_credential_files
 from ocoen.aws_token_manager.tty import confirm, if_tty, if_not_tty, tty, tty_input
 
 __version__ = '0.3.0'
@@ -94,36 +94,14 @@ def _get_current_username(session):
 def _get_base_credentials(profile, credential_file_defs=None, exit_if_none=True):
     if not credential_file_defs:
         credential_file_defs = _get_credential_file_defs(profile)
-    credential_files = get_config_files(*credential_file_defs, profile=profile)
-    credentials_gen = ((_extract_credentials(f, profile), f) for f in credential_files)
+    credential_files = get_credential_files(*credential_file_defs, profile=profile)
+    credentials_gen = ((f.get_credentials(), f) for f in credential_files)
     base_credentials = next((x for x in credentials_gen if x[0]), None)
     if base_credentials:
         return base_credentials
     if exit_if_none:
         sys.exit('No static access credentals found for profile {0}.'.format(profile))
     return None, None
-
-
-def _extract_credentials(config_file, profile):
-    if not config_file:
-        return None
-    section = config_file.get_profile_section(profile)
-    if not section:
-        return None
-
-    access_key = section.get('aws_access_key_id', None)
-    secret_key = section.get('aws_secret_access_key', None)
-    token = section.get('aws_session_token', None)
-    if not (access_key and secret_key):
-        return None
-
-    ret = {
-        'aws_access_key_id': access_key,
-        'aws_secret_access_key': secret_key,
-    }
-    if token:
-        ret['aws_session_token'] = token,
-    return ret
 
 
 @if_not_tty(prompt='Output is a terminal. Did you mean to run \'eval $(atm)\' instead ?\nDo you really want to write the access tokens? (Y/N): ')
@@ -156,24 +134,19 @@ def obtain_and_export_token(args):
 def import_credentials(args):
     profile = args.profile
     credential_file_defs = _get_credential_file_defs(profile)
-    profile_credentials_file = get_config_file(credential_file_defs[0], profile)
+    profile_credentials_file = get_credential_file(credential_file_defs[0], profile)
     if (profile_credentials_file.exists
             and not confirm('{0} exists, do you want to replace it? (Y/N): '.format(profile_credentials_file.basename))):
         sys.exit('Aborted')
-    base_credentials, config_file = _get_base_credentials(profile, credential_file_defs[1:])
+    base_credentials, credential_file = _get_base_credentials(profile, credential_file_defs[1:])
 
-    profile_credentials_file.new_config()
-    profile_credentials_file.new_profile_section(profile, base_credentials)
-    profile_credentials_file.save()
+    profile_credentials_file.set_credentials(base_credentials)
     print('Access key encrypted into {0}'.format(profile_credentials_file.basename))
 
-    if not confirm('Do you want to remove the credentials from {0} (you may loose comments and formatting)? (Y/N): '.format(config_file.basename)):
+    if not confirm('Do you want to remove the credentials from {0} (you may loose comments and formatting)? (Y/N): '.format(credential_file.basename)):
         return
-    section = config_file.get_profile_section(profile)
-    for k in base_credentials:
-        del section[k]
-    config_file.save()
-    print('Access key removed from {0}'.format(config_file.basename))
+    credential_file.remove_credentials()
+    print('Access key removed from {0}'.format(credential_file.basename))
 
     if not confirm('Do you want to rotate the access keys now? (Y/N): '):
         return
@@ -199,23 +172,18 @@ def _ensure_single_access_key(user, base_credentials):
     return inuse_access_key
 
 
-@if_tty(error_message='stdin and stdout must be a tty when rotateing credentials.')
+@if_tty(error_message='stdin and stdout must be a tty when rotating credentials.')
 def rotate_credentials(args):
     profile = args.profile
     profile_config = shared_config_file.get_profile_section(profile) or {}
-    base_credentials, config_file = _get_base_credentials(profile)
+    base_credentials, credential_file = _get_base_credentials(profile)
     session = _create_session_for_iam(base_credentials, profile_config)
     iam = session.resource('iam')
     user = iam.User(_get_current_username(session))
 
     inuse_access_key = _ensure_single_access_key(user, base_credentials)
     new_access_key = user.create_access_key_pair()
-    section = config_file.get_profile_section(profile)
-    section['aws_access_key_id'] = new_access_key.access_key_id
-    section['aws_secret_access_key'] = new_access_key.secret_access_key
-    if 'aws_session_token' in section:
-        del section['aws_session_token']
-    config_file.save()
+    credential_file.update_credentials(new_access_key.access_key_id, new_access_key.secret_access_key)
     inuse_access_key.delete()
     print('Access key rotated')
 
