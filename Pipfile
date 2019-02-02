@@ -8,8 +8,9 @@ flake8 = "*"
 pytest = "*"
 
 [packages]
-ocoen-filesecrets = {ref = "master",git = "https://github.com/orthanc/ocoen_filesecrets.git",editable = true}
+ocoen-filesecrets = {editable = true,git = "https://github.com/orthanc/ocoen_filesecrets.git",ref = "master"}
 ocoen-aws-token-manager = {path = ".",editable = true}
+pykeepass = "*"
 
 [requires]
 python_version = "3.6"

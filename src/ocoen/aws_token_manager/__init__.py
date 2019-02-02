@@ -134,11 +134,12 @@ def obtain_and_export_token(args):
 def import_credentials(args):
     profile = args.profile
     credential_file_defs = _get_credential_file_defs(profile)
-    profile_credentials_file = get_credential_file(credential_file_defs[0], profile)
+    profile_credentials_file = get_credential_file(credential_file_defs[1], profile)
+    other_credential_file_defs = credential_file_defs[2:]
     if (profile_credentials_file.exists
             and not confirm('{0} exists, do you want to replace it? (Y/N): '.format(profile_credentials_file.basename))):
         sys.exit('Aborted')
-    base_credentials, credential_file = _get_base_credentials(profile, credential_file_defs[1:])
+    base_credentials, credential_file = _get_base_credentials(profile, other_credential_file_defs)
 
     profile_credentials_file.set_credentials(base_credentials)
     print('Access key encrypted into {0}'.format(profile_credentials_file.basename))
@@ -190,7 +191,9 @@ def rotate_credentials(args):
 
 def _get_credential_file_defs(profile):
     return [
-        FileDef(FileFormat.ENCRYPTED_CREDENTIALS, base_def=shared_credentials_file_def, suffix="-{profile}.enc".format(profile=profile)),
+        FileDef(FileFormat.KEEPASS, base_def=shared_credentials_file_def, suffix='-{profile}.kdbx'.format(profile=profile)),
+        FileDef(FileFormat.ENCRYPTED_CREDENTIALS, base_def=shared_credentials_file_def, suffix='-{profile}.enc'.format(profile=profile)),
+        FileDef(FileFormat.KEEPASS, base_def=shared_credentials_file_def, suffix='.kdbx'),
         shared_config_file_def,
         shared_credentials_file_def,
     ]

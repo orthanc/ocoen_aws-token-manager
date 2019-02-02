@@ -5,6 +5,7 @@ import os.path
 from enum import Enum
 from configparser import ConfigParser
 from getpass import getpass
+from pykeepass import PyKeePass
 
 from ocoen import filesecrets
 
@@ -13,6 +14,7 @@ class FileFormat(Enum):
     CONFIG = 'config'
     CREDENTIALS = 'credentials'
     ENCRYPTED_CREDENTIALS = 'encrypted_credentials'
+    KEEPASS = 'keepass'
 
 
 class FileDef(object):
@@ -108,8 +110,8 @@ class ConfigCredentialsFile:
     def __init__(self, config_file, profile):
         self._config_file = config_file
         self._profile = profile
-        self.exists = config_file.exists
         self.basename = config_file.basename
+        self.exists = config_file.exists
 
     def get_credentials(self):
         section = self._config_file.get_profile_section(self._profile)
@@ -151,6 +153,69 @@ class ConfigCredentialsFile:
         self._config_file.save()
 
 
+class KeepassCredentialsFile:
+    def __init__(self, path, profile):
+        self._path = path
+        self._profile = profile
+        self._keepass = None
+        self.basename = os.path.basename(path)
+        self.exists = os.path.exists(path)
+
+    def _get_keepass(self):
+        if not self.exists:
+            return None
+        if not self._keepass:
+            password = getpass(prompt='Password for {0}: '.format(self.basename))
+            self._keepass = PyKeePass(self._path, password=password)
+        return self._keepass
+
+    def get_credentials(self):
+        keepass = self._get_keepass()
+        if not keepass:
+            return None
+        entry = keepass.find_entries(
+            path='AWS/' + self._profile + ' Access Key',
+            first=True,
+        )
+        if not entry:
+            return None
+
+        return {
+            'aws_access_key_id': entry.username,
+            'aws_secret_access_key': entry.password,
+        }
+
+    def set_credentials(self, credentials):
+        self.update_credentials(credentials['aws_access_key_id'], credentials['aws_secret_access_key'])
+
+    def update_credentials(self, access_key_id, secret_access_key):
+        keepass = self._get_keepass()
+        aws_group = keepass.find_groups(path='AWS/', first=True)
+        if not aws_group:
+            aws_group = keepass.add_group(keepass.root_group, 'AWS')
+        entry = keepass.find_entries(
+            path='AWS/' + self._profile + ' Access Key',
+            first=True,
+        )
+        if entry:
+            entry.username = access_key_id
+            entry.password = secret_access_key
+        else:
+            entry = keepass.add_entry(aws_group, self._profile + ' Access Key', access_key_id, secret_access_key)
+
+        keepass.save()
+
+    def remove_credentials(self):
+        keepass = self._get_keepass()
+        entry = keepass.find_entries(
+            path='aws/' + self._profile + '-access_key',
+            first=True,
+        )
+        if entry:
+            keepass.delete_entry(entry)
+            keepass.save()
+
+
 def get_credential_files(*file_defs, profile):
     return [get_credential_file(file_def, profile) for file_def in file_defs]
 
@@ -158,7 +223,10 @@ def get_credential_files(*file_defs, profile):
 def get_credential_file(file_def, profile):
     credential_file = _credential_files.get(file_def.path)
     if not credential_file:
-        credential_file = ConfigCredentialsFile(get_config_file(file_def, profile), profile)
+        if file_def.fmt == FileFormat.KEEPASS:
+            credential_file = KeepassCredentialsFile(file_def.path, profile)
+        else:
+            credential_file = ConfigCredentialsFile(get_config_file(file_def, profile), profile)
         _credential_files[file_def.path] = credential_file
     return credential_file
 
