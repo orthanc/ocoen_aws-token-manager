@@ -204,6 +204,19 @@ def _get_credential_file_defs(profile):
     ]
 
 
+@if_not_tty(prompt='Output is a terminal.\nDo you really want to export the access tokens? (Y/N): ')
+def export_credentials(args):
+    profile = args.profile
+    profile_config = shared_config_file.get_profile_section(profile) or {}
+    base_credentials, credential_file = _get_base_credentials(profile)
+    print('# Exported from {0}'.format(credential_file.basename))
+    print('[{0}]'.format(profile))
+    print('aws_access_key_id = {0}'.format(base_credentials['aws_access_key_id']))
+    print('aws_secret_access_key = {0}'.format(base_credentials['aws_secret_access_key']))
+    if 'aws_session_token' in base_credentials:
+        print('aws_session_token = {0}'.format(base_credentials['aws_session_token']))
+
+
 def _add_profile_argument(parser, default):
     parser.add_argument('--profile', default=default,
                         help='The profile to work with. Defaults to the AWS_PROFILE environment variable or "default".')
@@ -231,6 +244,12 @@ def main():
     # specified after the subcommand as well as before
     _add_profile_argument(r_parser, default=argparse.SUPPRESS)
 
+    e_parser = subparsers.add_parser('export',
+                                     help='Export the static access credentials to stdout.')
+    # Profile is added again so it shows up in sub command help and can be
+    # specified after the subcommand as well as before
+    _add_profile_argument(e_parser, default=argparse.SUPPRESS)
+
     args = parser.parse_args()
     if not args.command:
         obtain_and_export_token(args)
@@ -238,3 +257,5 @@ def main():
         import_credentials(args)
     elif args.command == 'rotate':
         rotate_credentials(args)
+    elif args.command == 'export':
+        export_credentials(args)
