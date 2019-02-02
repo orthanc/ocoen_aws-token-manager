@@ -37,6 +37,20 @@ class FileDef(object):
                 path = self.base_def.path + self.suffix
         return os.path.expanduser(path)
 
+    @property
+    def exists(self):
+        return os.path.exists(self.path)
+
+    @property
+    def is_import_target(self):
+        if self.fmt == FileFormat.ENCRYPTED_CREDENTIALS:
+            return True
+        elif self.fmt == FileFormat.KEEPASS and self.exists:
+            # Can't create keepass files yet, so if a keypass file is present default to
+            # importing into that. If not, create a filesecrets valult
+            return True
+        return False
+
 
 class ConfigFile(object):
     def __init__(self, path, prefix_sections, encrypted, additional_data=None):

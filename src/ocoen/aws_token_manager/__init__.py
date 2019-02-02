@@ -134,15 +134,20 @@ def obtain_and_export_token(args):
 def import_credentials(args):
     profile = args.profile
     credential_file_defs = _get_credential_file_defs(profile)
-    profile_credentials_file = get_credential_file(credential_file_defs[1], profile)
-    other_credential_file_defs = credential_file_defs[2:]
-    if (profile_credentials_file.exists
-            and not confirm('{0} exists, do you want to replace it? (Y/N): '.format(profile_credentials_file.basename))):
-        sys.exit('Aborted')
+    target_def = next((d for d in credential_file_defs if d.is_import_target))
+    other_credential_file_defs = [d for d in credential_file_defs if d is not target_def]
+    target_credentials_file = get_credential_file(target_def, profile)
+    if target_credentials_file.exists:
+        if target_def.fmt == FileFormat.KEEPASS:
+            if (target_credentials_file.get_credentials()
+                    and not confirm('{0} already has credentials for {1}, do you want to replace them? (Y/N): '.format(target_credentials_file.basename, profile))):
+                sys.exit('Aborted')
+        elif not confirm('{0} exists, do you want to replace it? (Y/N): '.format(target_credentials_file.basename)):
+            sys.exit('Aborted')
     base_credentials, credential_file = _get_base_credentials(profile, other_credential_file_defs)
 
-    profile_credentials_file.set_credentials(base_credentials)
-    print('Access key encrypted into {0}'.format(profile_credentials_file.basename))
+    target_credentials_file.set_credentials(base_credentials)
+    print('Access key encrypted into {0}'.format(target_credentials_file.basename))
 
     if not confirm('Do you want to remove the credentials from {0} (you may loose comments and formatting)? (Y/N): '.format(credential_file.basename)):
         return
