@@ -35,7 +35,7 @@ class FileDef(object):
                 path = self._path
             else:
                 path = self.base_def.path + self.suffix
-        return os.path.expanduser(path)
+        return os.path.abspath(os.path.expanduser(path))
 
     @property
     def exists(self):
@@ -101,6 +101,13 @@ class ConfigFile(object):
             return None
         section_name = self._get_profile_section_name(profile_name)
         config[section_name] = content.copy()
+
+    def update_profile_section(self, profile_name, content):
+        profile_section = self.get_profile_section(profile_name)
+        if profile_section:
+            profile_section.update(content)
+        else:
+            self.new_profile_section(profile_name, content)
 
     def get_profile_section(self, profile_name):
         config = self.get_config()

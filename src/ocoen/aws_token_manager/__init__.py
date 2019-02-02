@@ -94,7 +94,7 @@ def _get_current_username(session):
 
 def _get_base_credentials(profile, credential_file_defs=None, exit_if_none=True):
     if not credential_file_defs:
-        credential_file_defs = _get_credential_file_defs(profile)
+        credential_file_defs = _get_credential_file_defs(profile)[0]
     profile_config = shared_config_file.get_profile_section(profile) or {}
     credential_files = get_credential_files(*credential_file_defs, profile=profile, profile_config=profile_config)
     credentials_gen = ((f.get_credentials(), f) for f in credential_files)
@@ -135,10 +135,22 @@ def obtain_and_export_token(args):
 @if_tty(error_message='stdin and stdout must be a tty when importing credentials.')
 def import_credentials(args):
     profile = args.profile
-    profile_config = shared_config_file.get_profile_section(profile) or {}
-    credential_file_defs = _get_credential_file_defs(profile)
-    target_def = next((d for d in credential_file_defs if d.is_import_target))
-    other_credential_file_defs = [d for d in credential_file_defs if d is not target_def]
+    profile_config = dict(shared_config_file.get_profile_section(profile)) or {}
+    config_updates = {}
+    credential_file_defs, file_specified = _get_credential_file_defs(profile, include_all=True)
+    if args.target_file:
+        target_def = _build_file_def(args.target_file)
+        if not file_specified or target_def.path != credential_file_defs[0].path:
+            config_updates['credentials_file'] = target_def.path
+    elif file_specified:
+        target_def = credential_file_defs[0]
+    else:
+        target_def = next((d for d in credential_file_defs if d.is_import_target))
+    other_credential_file_defs = [d for d in credential_file_defs if d.path != target_def.path]
+    if args.target_access_key_path:
+        if args.target_access_key_path != profile_config.get('access_key_path'):
+            config_updates['access_key_path'] = args.target_access_key_path
+        profile_config['access_key_path'] = args.target_access_key_path
     target_credentials_file = get_credential_file(target_def, profile, profile_config)
     if target_credentials_file.exists:
         if target_def.fmt == FileFormat.KEEPASS:
@@ -149,6 +161,9 @@ def import_credentials(args):
             sys.exit('Aborted')
     base_credentials, credential_file = _get_base_credentials(profile, other_credential_file_defs)
 
+    if not confirm('Import credentials from {0} into {1}? (Y/N): '.format(credential_file.basename, target_credentials_file.basename)):
+        return
+
     target_credentials_file.set_credentials(base_credentials)
     print('Access key encrypted into {0}'.format(target_credentials_file.basename))
 
@@ -156,6 +171,12 @@ def import_credentials(args):
         return
     credential_file.remove_credentials()
     print('Access key removed from {0}'.format(credential_file.basename))
+
+    if (config_updates and confirm('Do you want to update profile config to use the imported key '
+                                   + '(you may loose comments and formatting)? (Y/N): ')):
+        shared_config_file.update_profile_section(profile, config_updates)
+        shared_config_file.save()
+
 
     if not confirm('Do you want to rotate the access keys now? (Y/N): '):
         return
@@ -196,14 +217,31 @@ def rotate_credentials(args):
     print('Access key rotated')
 
 
-def _get_credential_file_defs(profile):
-    return [
+def _get_credential_file_defs(profile, include_all=False):
+    profile_config = shared_config_file.get_profile_section(profile)
+    credentials_file = profile_config and profile_config.get('credentials_file')
+    if credentials_file:
+        credentials_files = [_build_file_def(credentials_file)]
+        if not include_all:
+            return credentials_files, True
+    else:
+        credentials_files = []
+    return credentials_files + [
         FileDef(FileFormat.KEEPASS, base_def=shared_credentials_file_def, suffix='-{profile}.kdbx'.format(profile=profile)),
         FileDef(FileFormat.ENCRYPTED_CREDENTIALS, base_def=shared_credentials_file_def, suffix='-{profile}.enc'.format(profile=profile)),
         FileDef(FileFormat.KEEPASS, base_def=shared_credentials_file_def, suffix='.kdbx'),
         shared_config_file_def,
         shared_credentials_file_def,
-    ]
+    ], bool(credentials_file)
+
+
+def _build_file_def(path):
+    file_format = None
+    if path.endswith('.enc'):
+        file_format = FileFormat.ENCRYPTED_CREDENTIALS
+    elif path.endswith('.kdbx'):
+        file_format = FileFormat.KEEPASS
+    return FileDef(file_format, path=path)
 
 
 @if_not_tty(prompt='Output is a terminal.\nDo you really want to export the access tokens? (Y/N): ')
@@ -238,6 +276,12 @@ def main():
     # Profile is added again so it shows up in sub command help and can be
     # specified after the subcommand as well as before
     _add_profile_argument(i_parser, default=argparse.SUPPRESS)
+    i_parser.add_argument('--target-file', '-f',
+                          help='Specify the path of the encrypted file to import the credentials into.')
+    i_parser.add_argument('--target-access-key-path',
+                          help='Specify the path within the encrypted file where the access keys should be stored. '
+                               + 'This is only supported for KeePass files and allows you to control which group '
+                               + 'and entry will be used.')
 
     r_parser = subparsers.add_parser('rotate',
                                      help='Rotate the static access credentials so that new credentials are in use.')
