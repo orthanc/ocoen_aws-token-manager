@@ -1,6 +1,9 @@
 0.3.0
 =====
 
+* Support for use of a KeePass database to store access keys
+* New `export` command to export the static access keys from an encrypted file
+* Support for rotating the IAM user password when rotating access keys
 * Support for specifying a MFA device in aws config using `mfa_serial` rather than discoveringa the MFA device
 * Remove requirement for `iam:GetUser` permission to work with more constrained environments
 
