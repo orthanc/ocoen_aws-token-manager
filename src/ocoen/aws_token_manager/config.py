@@ -175,11 +175,14 @@ class ConfigCredentialsFile:
 
 
 class KeepassCredentialsFile:
-    def __init__(self, path, access_key_path):
+    def __init__(self, path, access_key_path, password_path):
         self._path = path
         self._access_key_path = access_key_path
         if not access_key_path.startswith('/'):
             self._access_key_path = '/' + access_key_path
+        self._password_path = password_path
+        if not password_path.startswith('/'):
+            self._password_path = '/' + password_path
         self._keepass = None
         self.basename = os.path.basename(path)
         self.exists = os.path.exists(path)
@@ -243,6 +246,43 @@ class KeepassCredentialsFile:
             keepass.delete_entry(entry)
             keepass.save()
 
+    def get_password(self, username):
+        keepass = self._get_keepass()
+        if not keepass:
+            return None
+        entry = keepass.find_entries(
+            path=self._password_path,
+            first=True,
+        )
+        if not entry:
+            return None
+
+        if username != entry.username:
+            raise RuntimeError('{0} is for a different username, {1} vs {2}.'.format(entry, entry.username, username))
+        return entry.password
+
+    def set_password(self, username, password):
+        keepass = self._get_keepass()
+        entry = keepass.find_entries(
+            path=self._password_path,
+            first=True,
+        )
+        if entry:
+            entry.username = username
+            entry.password = password
+        else:
+            path_parts = self._password_path.split('/')
+            group = keepass.root_group
+            for group_name in path_parts[1:-1]:
+                child_group = keepass.find_groups(group=group, name=group_name, first=True, recursive=False)
+                if child_group:
+                    group = child_group
+                else:
+                    group = keepass.add_group(group, group_name)
+            entry = keepass.add_entry(group, path_parts[-1], username, password)
+
+        keepass.save()
+
 
 def get_credential_files(*file_defs, profile, profile_config):
     return [get_credential_file(file_def, profile, profile_config) for file_def in file_defs]
@@ -253,7 +293,8 @@ def get_credential_file(file_def, profile, profile_config):
     if not credential_file:
         if file_def.fmt == FileFormat.KEEPASS:
             access_key_path = profile_config.get('access_key_path', '/AWS/' + profile + ' Access Key')
-            credential_file = KeepassCredentialsFile(file_def.path, access_key_path)
+            password_path = profile_config.get('password_path', '/AWS/' + profile + ' Password')
+            credential_file = KeepassCredentialsFile(file_def.path, access_key_path, password_path)
         else:
             credential_file = ConfigCredentialsFile(get_config_file(file_def, profile), profile)
         _credential_files[file_def.path] = credential_file

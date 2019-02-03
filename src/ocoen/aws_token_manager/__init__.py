@@ -5,6 +5,9 @@ import readline  # NOQA
 import sys
 import time
 
+from base64 import urlsafe_b64encode
+from getpass import getpass
+
 import boto3
 
 from ocoen.aws_token_manager.config import FileDef, FileFormat, get_config_file, get_credential_file, get_credential_files
@@ -208,7 +211,28 @@ def rotate_credentials(args):
     base_credentials, credential_file = _get_base_credentials(profile)
     session = _create_session_for_iam(base_credentials, profile)
     iam = session.resource('iam')
-    user = iam.User(_get_current_username(session))
+    username = _get_current_username(session)
+    user = iam.User(username)
+
+    if getattr(args, 'change_password', False):
+        current_password = credential_file.get_password(username)
+        if args.prompt_password or not current_password:
+            current_password = getpass(prompt='Current Password for {0}: '.format(username))
+        new_password = getpass(prompt='New Password for {0} (Leave blank to generate): '.format(username))
+        if new_password:
+            if new_password != getpass(prompt='Confirm New Password for {0}: '.format(username)):
+                raise RuntimeError('Passwords for {0} don\'t match!'.format(username))
+        else:
+            new_password = urlsafe_b64encode(os.urandom(30)).decode('ASCII')
+
+        iam_client = session.client('iam')
+        iam_client.change_password(OldPassword=current_password, NewPassword=new_password)
+        try:
+            credential_file.set_password(username, new_password)
+        except Exception as e:
+            print('ERROR Saving new password, new password is \'{0}\'.'.format(new_password))
+            raise e
+        print('IAM password for {0} changed.'.format(username))
 
     inuse_access_key = _ensure_single_access_key(user, base_credentials)
     new_access_key = user.create_access_key_pair()
@@ -285,6 +309,12 @@ def main():
 
     r_parser = subparsers.add_parser('rotate',
                                      help='Rotate the static access credentials so that new credentials are in use.')
+    r_parser.add_argument('--change-password', action='store_true',
+                          help='Change the IAM user\'s password as well as rotating the access keys. '
+                               + 'This is only supported for KeePass files.')
+    r_parser.add_argument('--prompt-password', action='store_true',
+                          help='When --change-password is specified, prompt for the current password even if there '
+                               + 'is already a saved password.')
     # Profile is added again so it shows up in sub command help and can be
     # specified after the subcommand as well as before
     _add_profile_argument(r_parser, default=argparse.SUPPRESS)
