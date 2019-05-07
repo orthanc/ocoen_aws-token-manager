@@ -13,7 +13,7 @@ import boto3
 from ocoen.aws_token_manager.config import FileDef, FileFormat, get_config_file, get_credential_file, get_credential_files
 from ocoen.aws_token_manager.tty import confirm, if_tty, if_not_tty, tty, tty_input
 
-__version__ = '0.3.0'
+__version__ = '0.4.0'
 
 
 # See https://docs.aws.amazon.com/cli/latest/topic/config-vars.html
