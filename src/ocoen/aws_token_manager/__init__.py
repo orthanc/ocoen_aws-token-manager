@@ -10,7 +10,7 @@ from getpass import getpass
 
 import boto3
 
-from ocoen.aws_token_manager.config import FileDef, FileFormat, get_config_file, get_credential_file, get_credential_files
+from ocoen.aws_token_manager.config import FileDef, FileFormat, get_config_file, get_credential_file, get_credential_files, KeepassCredentialsFile
 from ocoen.aws_token_manager.tty import confirm, if_tty, if_not_tty, tty, tty_input
 
 __version__ = '0.4.0'
@@ -215,6 +215,10 @@ def rotate_credentials(args):
     user = iam.User(username)
 
     if getattr(args, 'change_password', False):
+        if isinstance(credential_file, KeepassCredentialsFile):
+            if not confirm('There are issues with rotating passwords in KeePass databases, sometimes the database is corrupted. ' +
+                           'Make sure it\'s backed up. Do you want to continue? (Y/N): '):
+                sys.exit('Aborted')
         current_password = credential_file.get_password(username)
         if args.prompt_password or not current_password:
             current_password = getpass(prompt='Current Password for {0}: '.format(username))
